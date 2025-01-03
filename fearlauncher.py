@@ -91,7 +91,11 @@ class FEARManagerApp:
 
             # Free up memory by removing frames that are no longer needed
             if self.current_frame == 0:
+                # Trigger garbage collection after clearing previous frames
+                self.gif_frames.clear()  # Clear previous frames
                 gc.collect()  # Manually trigger garbage collection
+                self.gif_frames = self.load_gif(self.resource_path("background.gif"))  # Reload the GIF frames
+            
             self.root.after(50, self.update_gif)  # Call update_gif every 50ms
 
     def select_path(self):
@@ -167,6 +171,11 @@ class FEARManagerApp:
         self.delete_openspy_dll()
 
         messagebox.showinfo("Installation Completed", "Installation completed successfully.")
+		
+        messagebox.showinfo("Multiplayer Setup", 
+                    "After installation, go to the Multiplayer tab in the game.\n\n"
+                    "Then, go to Client Settings, and edit the CD key to a random character garbled mess.\n\n"
+                    "Make sure your CD key is unique and does not match other clients in the server.")
 
     def delete_openspy_dll(self):
         # Delete openspy.x64.dll if it exists in both FEARXP and FEARXP2
