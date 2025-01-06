@@ -235,7 +235,7 @@ class FEARManagerApp:
             messagebox.showerror("Error", "Please select a game path first.")
             return
 
-        os.startfile("steam://run/21111")  # Run Perseus Mandate via Steam URL
+        os.startfile("steam://run/21120")  # Run Perseus Mandate via Steam URL
 
     def with_sound(self, func):
         def wrapper(*args, **kwargs):
