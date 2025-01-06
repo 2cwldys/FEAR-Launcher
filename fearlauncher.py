@@ -165,10 +165,45 @@ class FEARManagerApp:
         except Exception as e:
             messagebox.showerror("Error", f"Failed to download .dll: {e}")
 
+    def delete_existing_files(self):
+        """Delete existing files or folders from the game path before installation."""
+        if not self.game_path:
+            return
+
+        paths_to_delete = [
+            os.path.join(self.game_path, "FEAR108.zip"),
+            os.path.join(self.game_path, "FEAR.v1.08.NoCD.zip"),
+            os.path.join(self.game_path, "openspy.zip"),
+            os.path.join(self.game_path, "version.dll"),
+            os.path.join(self.game_path, "winmm.dll"),
+            os.path.join(self.game_path, "FEAR.exe"),
+            os.path.join(self.game_path, "FEARMP.exe"),
+            os.path.join(self.game_path, "FEARXP", "FEARXP.exe"),
+            os.path.join(self.game_path, "FEARXP", "version.dll"),
+            os.path.join(self.game_path, "FEARXP", "winmm.dll"),
+            os.path.join(self.game_path, "FEARXP2", "FEARXP2.exe"),
+            os.path.join(self.game_path, "FEARXP2", "version.dll"),
+            os.path.join(self.game_path, "FEARXP2", "winmm.dll"),
+        ]
+
+        for path in paths_to_delete:
+            if os.path.exists(path):
+                try:
+                    if os.path.isdir(path):
+                        shutil.rmtree(path)  # Delete directories
+                    else:
+                        os.remove(path)  # Delete files
+                    print(f"Deleted: {path}")
+                except Exception as e:
+                    print(f"Failed to delete {path}: {e}")
+
     def install_files(self):
         if not self.game_path:
             messagebox.showerror("Error", "Please select a game path first.")
             return
+
+        # Delete existing files before installation
+        self.delete_existing_files()
 
         messagebox.showinfo("Please Wait", "The application may freeze, please wait until fully installed.\n\nPress OK to continue.")
         
@@ -248,9 +283,12 @@ class FEARManagerApp:
         self.root.lift()
 
     def on_close(self):
+        # Exit gracefully
+        pygame.mixer.music.stop()
         self.root.quit()
 
-# Running the application
-root = tk.Tk()
-app = FEARManagerApp(root)
-root.mainloop()
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = FEARManagerApp(root)
+    root.mainloop()
