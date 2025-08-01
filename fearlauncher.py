@@ -2,9 +2,11 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 from PIL import Image, ImageTk, ImageSequence
 import os
+import subprocess
 import requests
 import zipfile
 import shutil
+import psutil
 import pygame
 import time
 import gc
@@ -115,6 +117,13 @@ class FEARManagerApp:
                 pygame.mixer.music.unpause()
             self.music_playing = not self.music_playing
 
+    def _is_process_running(self, process_name):
+        """Helper function to check if a process with a given name is running."""
+        for proc in psutil.process_iter(['name']):
+            if proc.info['name'] == process_name:
+                return True
+        return False
+
     def download_and_extract(self, url, extract_to, rename_files=None):
         try:
             filename = url.split("/")[-1]
@@ -171,17 +180,19 @@ class FEARManagerApp:
             return
 
         paths_to_delete = [
-            os.path.join(self.game_path, "FEAR108.zip"),
-            os.path.join(self.game_path, "FEAR.v1.08.NoCD.zip"),
+            #os.path.join(self.game_path, "FEAR108.zip"),
+            #os.path.join(self.game_path, "FEAR.v1.08.NoCD.zip"),
+            os.path.join(self.game_path, "EchoPatch.zip"),
+            os.path.join(self.game_path, "STEAMLESS_310.zip"),
             os.path.join(self.game_path, "openspy.zip"),
             os.path.join(self.game_path, "version.dll"),
             os.path.join(self.game_path, "winmm.dll"),
-            os.path.join(self.game_path, "FEAR.exe"),
-            os.path.join(self.game_path, "FEARMP.exe"),
-            os.path.join(self.game_path, "FEARXP", "FEARXP.exe"),
+            #os.path.join(self.game_path, "FEAR.exe"),
+            #os.path.join(self.game_path, "FEARMP.exe"),
+            #os.path.join(self.game_path, "FEARXP", "FEARXP.exe"),
             os.path.join(self.game_path, "FEARXP", "version.dll"),
             os.path.join(self.game_path, "FEARXP", "winmm.dll"),
-            os.path.join(self.game_path, "FEARXP2", "FEARXP2.exe"),
+            #os.path.join(self.game_path, "FEARXP2", "FEARXP2.exe"),
             os.path.join(self.game_path, "FEARXP2", "version.dll"),
             os.path.join(self.game_path, "FEARXP2", "winmm.dll"),
         ]
@@ -208,8 +219,10 @@ class FEARManagerApp:
         messagebox.showinfo("Please Wait", "The application may freeze, please wait until fully installed.\n\nPress OK to continue.")
         
         steps = [
-            ("https://github.com/2cwldys/FEAR-Launcher/releases/download/PREREQUISITES/FEAR108.zip", self.game_path, None),
-            ("https://github.com/2cwldys/FEAR-Launcher/releases/download/PREREQUISITES/FEAR.v1.08.NoCD.zip", self.game_path, None),
+            #("https://github.com/2cwldys/FEAR-Launcher/releases/download/PREREQUISITES/FEAR108.zip", self.game_path, None),
+            #("https://github.com/2cwldys/FEAR-Launcher/releases/download/PREREQUISITES/FEAR.v1.08.NoCD.zip", self.game_path, None),
+            ("https://github.com/2cwldys/FEAR-Launcher/releases/download/PREREQUISITES/STEAMLESS_310.zip", self.game_path, None),
+            ("https://github.com/2cwldys/FEAR-Launcher/releases/download/PREREQUISITES/EchoPatch.zip", self.game_path, None),
             ("https://github.com/2cwldys/FEAR-Launcher/releases/download/PREREQUISITES/openspy.zip", self.game_path, {"openspy.x86.dll": "version.dll"}),  # Base game path
             ("https://github.com/2cwldys/FEAR-Launcher/releases/download/PREREQUISITES/openspy.zip", os.path.join(self.game_path, "FEARXP"), {"openspy.x86.dll": "version.dll"}),
             ("https://github.com/2cwldys/FEAR-Launcher/releases/download/PREREQUISITES/openspy.zip", os.path.join(self.game_path, "FEARXP2"), {"openspy.x86.dll": "version.dll"}),
@@ -230,15 +243,19 @@ class FEARManagerApp:
             if os.path.exists(zip_filepath) and not zip_filepath.endswith(".dll"):  # Ensure DLLs are not deleted
                 os.remove(zip_filepath)
 
+        # Handle Steamless DRM removal & deletion thereafter
+        self.handle_steamless()
+        self.remove_steamless()
+
         # Delete openspy.x64.dll if it exists in base path, FEARXP, and FEARXP2
         self.delete_openspy_dll()
 
         messagebox.showinfo("Installation Completed", "Installation completed successfully.")
         
-        messagebox.showinfo("Multiplayer Setup", 
-                    "After installation, go to the Multiplayer tab in the game.\n\n"
-                    "Then, go to Client Settings, and edit the CD key to a random character garbled mess.\n\n"
-                    "Make sure your CD key is unique and does not match other clients in the server.")
+        messagebox.showinfo("Important Info", 
+                    "Multiplayer functionality is now compatible with Openspy!\n\n"
+                    "You must run FEAR.exe.unpacked in your Steamapps/Common/FEAR directory in order to play.\n\n"
+                    "Launching through steam by default will not work!")
 
     def delete_openspy_dll(self):
         # Delete openspy.x64.dll if it exists in base path, FEARXP, and FEARXP2
@@ -250,6 +267,105 @@ class FEARManagerApp:
                     print(f"Deleted: {dll_path}")
                 except Exception as e:
                     print(f"Failed to delete {dll_path}: {e}")
+
+    def handle_steamless(self):
+        """
+        Runs Steamless.CLI.exe on the specified game executables.
+        """
+        # 1. Define the path to the Steamless tool.
+        #    It's assumed to be in the root of the game directory.
+        steamless_cli_path = os.path.join(self.game_path, "Steamless.CLI.exe")
+
+        # 2. Check if Steamless.CLI.exe exists before proceeding.
+        if not os.path.exists(steamless_cli_path):
+            print("Error: Steamless.CLI.exe not found. Cannot perform the requested operation.")
+            return
+
+        # 3. Define the target executables and their corresponding sub-folders.
+        #    The key is the executable name, and the value is its directory.
+        targets = {
+            "FEAR.exe": ""
+        }
+
+        print("Starting Steamless processing...")
+
+        # 4. Iterate through the targets and run the command for each one.
+        for exe_name, sub_folder in targets.items():
+            print(f"\nProcessing: {exe_name}")
+            
+            # Construct the full path to the target executable.
+            exe_path = os.path.join(self.game_path, sub_folder, exe_name)
+
+            # 5. Check if the target executable exists before trying to process it.
+            if not os.path.exists(exe_path):
+                print(f"Warning: {exe_name} not found at '{exe_path}'. Skipping.")
+                continue
+
+            # 6. Run the subprocess command.
+            try:
+                # subprocess.run is the modern way to run external commands.
+                # It takes a list of strings for the command and its arguments.
+                # 'check=True' will raise an exception if the command returns a non-zero exit code.
+                # 'capture_output=True' will save stdout and stderr.
+                # 'text=True' decodes the output as text.
+                result = subprocess.run(
+                    [steamless_cli_path, exe_path],
+                    check=True,
+                    capture_output=True,
+                    text=True
+                )
+                
+                # Print success message and the output from Steamless.CLI.exe
+                print(f"Successfully processed {exe_name}.")
+                if result.stdout:
+                    print("--- Steamless Output ---")
+                    print(result.stdout.strip())
+                
+            except FileNotFoundError:
+                print(f"Error: The command failed because '{steamless_cli_path}' or '{exe_path}' was not found.")
+            except subprocess.CalledProcessError as e:
+                # This block handles non-zero exit codes from the command.
+                print(f"Error: Steamless failed for {exe_name} with exit code {e.returncode}.")
+                print("--- Error Output ---")
+                print(e.stderr.strip())
+            except Exception as e:
+                # Catch any other unexpected errors.
+                print(f"An unexpected error occurred while processing {exe_name}: {e}")
+
+        print("\nSteamless processing complete.")
+
+    def remove_steamless(self):
+        # Delete steamless contents
+
+        # Wait until the process has finished
+        process_name = "Steamless.CLI.exe"
+        if self._is_process_running(process_name):
+            print(f"Waiting for '{process_name}' to close before deleting files...")
+            while self._is_process_running(process_name):
+                time.sleep(1) # Wait for 1 second before checking again
+            print(f"'{process_name}' has closed. Proceeding with file deletion.")
+
+        content_to_remove = ["ExamplePlugin.zip", "Steamless.CLI.exe", "Steamless.CLI.exe.config", "Steamless.exe", "Steamless.exe.config"]
+        plugins_folder = "Plugins"
+        
+        for folder in [""]:
+            for file_name in content_to_remove:
+                file_path = os.path.join(self.game_path, folder, file_name)
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                        print(f"Deleted: {file_path}")
+                    except Exception as e:
+                        print(f"Failed to delete {file_path}: {e}")
+
+        plugins_path = os.path.join(self.game_path, plugins_folder)
+        if os.path.exists(plugins_path) and os.path.isdir(plugins_path):
+            try:
+                # Use shutil.rmtree to remove the folder and all its contents
+                shutil.rmtree(plugins_path)
+                print(f"Deleted entire folder: {plugins_path}")
+            except Exception as e:
+                print(f"Failed to delete folder {plugins_path}: {e}")
 
     def run_fear(self):
         if not self.game_path:
